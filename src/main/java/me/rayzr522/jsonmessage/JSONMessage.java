@@ -15,10 +15,12 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.Vector;
 
 /**
@@ -122,8 +124,8 @@ public class JSONMessage {
         JsonArray array = new JsonArray();
 
         parts.stream()
-                .map(MessagePart::toJSON)
-                .forEach(array::add);
+             .map(MessagePart::toJSON)
+             .forEach(array::add);
 
         obj.add("extra", array);
 
@@ -149,8 +151,8 @@ public class JSONMessage {
         StringBuilder output = new StringBuilder();
 
         parts.stream()
-                .map(MessagePart::toLegacy)
-                .forEach(output::append);
+             .map(MessagePart::toLegacy)
+             .forEach(output::append);
 
         return output.toString();
     }
@@ -161,6 +163,11 @@ public class JSONMessage {
      * @param players The players you want to send this to
      */
     public void send(Player... players) {
+        if (ReflectionHelper.getStringVersion().equalsIgnoreCase("v1_16_R1")) {
+            ReflectionHelper.sendTextPacket(toString(), players);
+            return;
+        }
+
         ReflectionHelper.sendPacket(ReflectionHelper.createTextPacket(toString()), players);
     }
 
@@ -622,6 +629,7 @@ public class JSONMessage {
 
             for (Player player : players) {
                 try {
+                    System.out.println(version);
                     SEND_PACKET.bindTo(connection.get(GET_HANDLE.bindTo(player).invoke())).invoke(packet);
                 } catch (Throwable e) {
                     System.err.println("Failed to send packet");
@@ -672,6 +680,22 @@ public class JSONMessage {
                 return null;
             }
 
+        }
+
+        static void sendTextPacket(String message, Player... players) {
+            try {
+                for (Player player : players) {
+                    Class chatTypeClass = getClass("{nms}.ChatMessageType");
+                    Constructor<?> constructor = packetPlayOutChat.getConstructor(getClass("{nms}.IChatBaseComponent"), chatTypeClass, UUID.class);
+                    Object packet = constructor.newInstance(fromJson(message), Enum.valueOf(chatTypeClass, "CHAT"), player.getUniqueId());
+
+                    Object handler = player.getClass().getMethod("getHandle").invoke(player);
+                    Object playerConnection = handler.getClass().getField("playerConnection").get(handler);
+                    playerConnection.getClass().getMethod("sendPacket", getClass("{nms}.Packet")).invoke(playerConnection, packet);
+                }
+            } catch (IllegalArgumentException | NoSuchMethodException | NoSuchFieldException | IllegalAccessException | InvocationTargetException | InstantiationException | ClassNotFoundException e) {
+                e.printStackTrace();
+            }
         }
 
         static Object createTitlePacket(String message) {
@@ -792,6 +816,10 @@ public class JSONMessage {
                 e.printStackTrace();
             }
         }
+        
+        public static String getStringVersion() {
+            return version;
+        }
 
         static int getVersion() {
             if (!SETUP) {
@@ -816,7 +844,7 @@ public class JSONMessage {
      *
      * @author Rayzr
      */
-    public class MessagePart {
+    public static class MessagePart {
 
         private final List<ChatColor> styles = new ArrayList<>();
         private MessageEvent onClick;
@@ -868,8 +896,8 @@ public class JSONMessage {
                 output.append(color.toString());
             }
             styles.stream()
-                    .map(ChatColor::toString)
-                    .forEach(output::append);
+                  .map(ChatColor::toString)
+                  .forEach(output::append);
 
             return output.append(text).toString();
         }
