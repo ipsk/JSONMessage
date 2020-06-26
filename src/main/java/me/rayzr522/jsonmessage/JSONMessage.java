@@ -6,10 +6,12 @@ import com.google.common.collect.ImmutableBiMap;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+import org.json.simple.JSONObject;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -165,6 +167,20 @@ public class JSONMessage {
     public void send(Player... players) {
         if (ReflectionHelper.getStringVersion().equalsIgnoreCase("v1_16_R1")) {
             ReflectionHelper.sendTextPacket(toString(), players);
+            return;
+        }
+
+        ReflectionHelper.sendPacket(ReflectionHelper.createTextPacket(toString()), players);
+    }
+
+    /**
+     * Sends this {@link JSONMessage} to all the players specified
+     *
+     * @param players The players you want to send this to
+     */
+    public void sendTest(String json, Player... players) {
+        if (ReflectionHelper.getStringVersion().equalsIgnoreCase("v1_16_R1")) {
+            ReflectionHelper.sendTextPacket(new JsonParser().parse(json).toString(), players);
             return;
         }
 
